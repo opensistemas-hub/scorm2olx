@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import xml.etree.ElementTree as ET
 import pdb
 import re
+import os
 import json
 
 try:
@@ -25,8 +26,15 @@ class Scorm(object):
         self.parse()
 
     def __repr__(self):
-        return "Scorm representation for '{0}'".format(self.scorm_file)
+        return "Scorm representation for '{0}':\n\n{1}".format(
+                self.scorm_file,
+                json.dumps(self.parse(), indent=4)
+            )
 
+
+    """
+        Legacy Code from old parser
+    """
     def _et_parse(self, scorm_xml):
         try:
             fileHandler = StringIO.StringIO()
@@ -38,7 +46,6 @@ class Scorm(object):
         except IOError:
             pass
         else:
-            # pdb.set_trace()
             namespace = ''
             nodes = [node for _, node in ET.iterparse(fileHandler, events=['start-ns'])]
 
@@ -60,8 +67,6 @@ class Scorm(object):
 
             orgs = list()
             for organization in organizations:
-                # pdb.set_trace()
-                # print list(organization.iter())
 
                 org = dict()
                 texts = filter(lambda x: x if not re.match('\s', x) else None,
@@ -104,34 +109,34 @@ class Scorm(object):
 
                 return org
 
-    def _bs_parse(self, scorm_xml):
+    def _bs_parse(self, scorm_xml, zipf):
 
         b = BeautifulSoup(scorm_xml, 'xml')
-        orgs = dict()
-        resources = list(b.resources)
-        for org in b.organizations.children:
-            print org.string
-            # title = org.contents
-            # print title
-            # for k, v in org.__dict__.items():
-            #     if k is not 'parent':
-            #         print k, v
-            # print org.__dict__
-            # print org.attrs
-            # print help(org)
-            # for e in org:
-                # help(e)
-            # if 'contents' in org.__dict__.keys():
-            #     print org.contents
-            # # else:
-            #     print org
-            # print org.__dict__.keys()
-            # print
-            # print org.title.contents
-            # print org.item
-            # print b.resources
-            print
+        orgs = list()
+        for org in b.organizations.find_all('item'):
+            d_org = dict()
+            d_org.update({
+            'title': org.title.text,
+            'identifier': org.get('identifier'),
+            'identifierref': org.get('identifierref')
+            })
 
+            resource = list(b.find_all('resource', identifier=org.get('identifierref')))[0]
+            files = map(lambda x: x.get('href'), resource.find_all('file'))
+            index_href = resource.get('href', 'index.html')
+            dirname = os.path.dirname(index_href)
+            index_html = zipf.gettext(u'/{0}'.format(index_href))
+
+            # Parse index_html to find out whether a popup exists
+            m = re.search(r"window\.open\(\"(?P<url>[\w+\/\.]+)\",", index_html)
+            if m:
+                index_href = os.path.join(dirname, m.group('url'))
+
+            d_org.update({
+                "index": index_href,
+                "files": files
+            })
+            orgs.append(d_org)
         return orgs
 
 
@@ -139,14 +144,11 @@ class Scorm(object):
         try:
             with fs.open_fs('zip://{0}'.format(self.scorm_file)) as zipfs:
                 scorm_xml = zipfs.gettext(u'/imsmanifest.xml')
-                # orgs = self._et_parse(scorm_xml)
-                orgs = self._bs_parse(scorm_xml)
-
-                print json.dumps(orgs, indent=4)
+                orgs = self._bs_parse(scorm_xml, zipf=zipfs)
                 return orgs
-
         except fs.errors.ResourceNotFound as e:
             print("Invalid SCORM file")
+            print(e)
 
 def main():
     s = Scorm('./la_seguridad_social.zip')
