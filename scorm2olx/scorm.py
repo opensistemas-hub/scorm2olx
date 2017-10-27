@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 import pdb
 import re
 import os
+import sys
 import json
 
 try:
@@ -109,7 +110,7 @@ class Scorm(object):
 
                 return org
 
-    def _bs_parse(self, scorm_xml, zipf):
+    def _bs_parse(self, scorm_xml, zipfs):
 
         b = BeautifulSoup(scorm_xml, 'xml')
         orgs = list()
@@ -125,7 +126,7 @@ class Scorm(object):
             files = map(lambda x: x.get('href'), resource.find_all('file'))
             index_href = resource.get('href', 'index.html')
             dirname = os.path.dirname(index_href)
-            index_html = zipf.gettext(u'/{0}'.format(index_href))
+            index_html = zipfs.gettext(u'/{0}'.format(index_href))
 
             # Parse index_html to find out whether a popup exists
             m = re.search(r"window\.open\(\"(?P<url>[\w+\/\.]+)\",", index_html)
@@ -134,7 +135,7 @@ class Scorm(object):
 
             d_org.update({
                 "index": index_href,
-                "files": files
+                "files": sorted(files)
             })
             orgs.append(d_org)
         return orgs
@@ -144,14 +145,15 @@ class Scorm(object):
         try:
             with fs.open_fs('zip://{0}'.format(self.scorm_file)) as zipfs:
                 scorm_xml = zipfs.gettext(u'/imsmanifest.xml')
-                orgs = self._bs_parse(scorm_xml, zipf=zipfs)
+                orgs = self._bs_parse(scorm_xml, zipfs=zipfs)
                 return orgs
         except fs.errors.ResourceNotFound as e:
             print("Invalid SCORM file")
             print(e)
 
 def main():
-    s = Scorm('./la_seguridad_social.zip')
+    print sys.argv[1]
+    s = Scorm(sys.argv[1])
     print(s)
 
 
