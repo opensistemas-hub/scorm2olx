@@ -8,6 +8,19 @@ import shutil
 import sys
 from jinja2 import Template
 
+
+__COURSE_XML__ = '<course url_name="course" org="{{ org }}" course="{{ course }}"/>'
+__COURSE_COURSE_XML__ = """
+<course
+    advanced_modules="[&quot;videoalpha&quot;, &quot;annotatable&quot;, &quot;scormxblock&quot;, &quot;google-document&quot;]"
+    cert_html_view_enabled="true"
+    display_name="{{ course_name }}"
+    language="en"
+    start="&quot;2030-01-01T00:00:00+00:00&quot;">
+  <wiki slug="{{org}}.{{course}}.2030"/>
+</course>
+"""
+
 class OLX(object):
     def __init__(self, olx_file):
         super(OLX, self).__init__()
@@ -42,24 +55,23 @@ class OLX(object):
             zipfs.makedirs(u'html')
 
             zipfs.makedirs(u'course')
-            with open('tpl/course.xml.tpl', 'r') as fTpl:
-                tpl = Template(fTpl.read())
-                print tpl
+            tpl = Template(__COURSE_XML__)
 
-                zipfs.settext(u'course.xml', tpl.render({
-                    "org": "OS",
-                    "course": "4"
-                }))
-
-            with open('tpl/course/course.xml.tpl') as fTpl:
-                tpl = Template(fTpl.read())
-                zipfs.settext(u'course/course.xml', tpl.render({
+            zipfs.settext(u'course.xml', tpl.render({
                 "org": "OS",
-                "course": "4",
-                "course_name": self.olx_file
-                }))
+                "course": "4"
+            }))
+
+            tpl = Template(__COURSE_COURSE_XML__)
+            zipfs.settext(u'course/course.xml', tpl.render({
+            "org": "OS",
+            "course": "4",
+            "course_name": self.olx_file
+            }))
 
             print zipfs.listdir(u'/')
+
+    
 
 
 def main():
