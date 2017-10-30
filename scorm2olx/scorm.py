@@ -12,12 +12,22 @@ import re
 import os
 import sys
 import json
+import mimetypes
+
+mimetypes.init()
 
 try:
     import lxml
     __PARSER__='xml'
 except ImportError:
     __PARSER__ = ''
+
+def mimeparse(f, zipfs):
+    # print
+    # print zipfs.getinfo(u'{0}'.format(f)).__dict__
+    # print
+
+    return f
 
 
 class Scorm(object):
@@ -122,7 +132,7 @@ class Scorm(object):
             })
 
             resource = list(b.find_all('resource', identifier=org.get('identifierref')))[0]
-            files = map(lambda x: x.get('href'), resource.find_all('file'))
+            files = map(lambda x: mimeparse(x.get('href'), zipfs), resource.find_all('file'))
             index_href = resource.get('href', 'index.html')
             dirname = os.path.dirname(index_href)
             index_html = zipfs.gettext(u'/{0}'.format(index_href))
@@ -138,6 +148,9 @@ class Scorm(object):
             })
             orgs.append(d_org)
         return orgs
+
+
+
 
 
     def parse(self):
