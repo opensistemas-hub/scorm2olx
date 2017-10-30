@@ -24,7 +24,6 @@ class Scorm(object):
     def __init__(self, scorm_file):
         super(Scorm, self).__init__()
         self.scorm_file = scorm_file
-        self.parse()
 
     def __repr__(self):
         return "Scorm representation for '{0}':\n\n{1}".format(
