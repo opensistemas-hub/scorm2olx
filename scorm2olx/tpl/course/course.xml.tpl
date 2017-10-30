@@ -4,5 +4,5 @@
     display_name="{{ course_name }}"
     language="en"
     start="&quot;2030-01-01T00:00:00+00:00&quot;">
-  <wiki slug="{{org}}.{{course}}.2031"/>
+  <wiki slug="{{org}}.{{course}}.2030"/>
 </course>

@@ -3,6 +3,7 @@
 
 
 import fs
+from fs.tarfs import TarFS
 import shutil
 import sys
 from jinja2 import Template
@@ -14,7 +15,7 @@ class OLX(object):
         self.skel()
 
     def skel(self):
-        with fs.open_fs('zip://{0}'.format(self.olx_file), writeable=True, create=True) as zipfs:
+        with TarFS('{0}'.format(self.olx_file), write=True) as zipfs:
 
             zipfs.makedirs(u'about')
             zipfs.touch(u'/about/overview.html')
