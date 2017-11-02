@@ -39,19 +39,19 @@ class OLX(object):
     def skel(self):
         with TarFS('{0}'.format(self.olx_file), write=True) as zipfs:
 
-            zipfs.makedirs(u'about')
+            zipfs.makedirs(u'/about')
             zipfs.touch(u'/about/overview.html')
             zipfs.touch(u'/about/short_description.html')
 
 
-            zipfs.makedirs(u'info')
+            zipfs.makedirs(u'/info')
             zipfs.touch(u'/info/updates.html')
             zipfs.touch(u'/info/handouts.html')
 
-            zipfs.makedirs(u'policies')
-            zipfs.touch(u'/policies/grading_policy.json')
-            zipfs.settext(u'/policies/policy.json',
-            u"""
+            zipfs.makedirs(u'/policies/course')
+            zipfs.settext(u'/policies/course/grading_policy.json', u'{}')
+
+            policy = u"""
 {
     "course/course": {
         "advanced_modules": [
@@ -63,7 +63,7 @@ class OLX(object):
         "cert_html_view_enabled": true,
         "discussion_topics": {
             "General": {
-                "id": "i4x-OS-4-course-course"
+                "id": "course"
             }
         },
         "display_name": "SegSocial.zip",
@@ -100,35 +100,44 @@ class OLX(object):
                 "name": "Progress",
                 "type": "progress"
             }
-        ],
-        "xml_attributes": {
-            "filename": [
-                "course/course.xml",
-                "course/course.xml"
-            ]
-        }
+        ]
     }
-            """)
+}"""
+            import json
+            try:
+                pol = json.loads(policy)
+            except Exception as e:
+                print (e)
+                sys.exit(3)
+
+            zipfs.settext(u'/policies/course/policy.json', u'{0}'.format(json.dumps(pol)))
 
             zipfs.settext(u'/policies/assets.json', u'{}')
 
-            zipfs.makedirs(u'problem')
-            zipfs.makedirs(u'static')
+            zipfs.makedirs(u'/problem')
+            zipfs.makedirs(u'/static')
 
-            zipfs.makedirs(u'chapter')
-            zipfs.makedirs(u'sequential')
-            zipfs.makedirs(u'vertical')
+            zipfs.makedirs(u'/chapter')
+            zipfs.makedirs(u'/sequential')
+            zipfs.makedirs(u'/vertical')
 
-            zipfs.makedirs(u'tabs')
-            zipfs.makedirs(u'html')
+            zipfs.makedirs(u'/tabs')
+            zipfs.makedirs(u'/html')
 
             zipfs.makedirs(u'course')
             tpl = Template(__COURSE_XML__)
 
+            # zipfs.settext(u'course.xml', tpl.render({
+            #     "org": "OS",
+            #     "course": "4"
+            # }))
             zipfs.settext(u'course.xml', tpl.render({
-                "org": "OS",
-                "course": "4"
+            "org": "OS",
+            "course": "4",
+            "course_name": self.olx_file,
+            "chapters": self.add_chapters(zipfs)
             }))
+
 
             tpl = Template(__COURSE_COURSE_XML__)
             zipfs.settext(u'course/course.xml', tpl.render({
@@ -155,21 +164,21 @@ class OLX(object):
         hash_seq = md5(chapter.get('identifier'))
         hash_vert = md5(chapter.get('identifierref'))
 
-        xml_chapter = Template('<chapter url_name="{{url_name}}.xml" />').render(url_name=hash_name)
+        xml_chapter = Template('<chapter url_name="{{url_name}}" />').render(url_name=hash_name)
 
         xml_full_chapter = Template("""
             <chapter display_name="{{display_name}}">
-                <sequential url_name="{{hash_seq}}.xml" />
+                <sequential url_name="{{hash_seq}}" />
             </chapter>
         """).render(display_name=title, hash_seq=hash_seq)
+        zipfs.settext(u'/chapter/{0}.xml'.format(hash_name), xml_full_chapter)
 
-        zipfs.settext(u'chapter/{0}.xml'.format(hash_name), xml_full_chapter)
         xml_full_sequential = Template("""
             <sequential display_name="{{display_name}}">
-                <vertical url_name="{{hash_vert}}.xml" />
+                <vertical url_name="{{hash_vert}}" />
             </sequential>
         """).render(display_name=title, hash_vert=hash_vert)
-        zipfs.settext(u'sequential/{0}.xml'.format(hash_seq), xml_full_sequential)
+        zipfs.settext(u'/sequential/{0}.xml'.format(hash_seq), xml_full_sequential)
 
         xml_full_vertical = Template("""
             <vertical display_name="{{display_name}}">
@@ -186,7 +195,7 @@ class OLX(object):
             display_name=title,
             hash_unit=hash_seq,
             scorm_file=chapter.get('index'))
-        zipfs.settext(u'vertical/{0}.xml'.format(hash_vert), xml_full_vertical)
+        zipfs.settext(u'/vertical/{0}.xml'.format(hash_vert), xml_full_vertical)
 
         return xml_chapter
 
