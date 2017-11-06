@@ -188,7 +188,7 @@ class OLX(object):
                     icon_class="video"
                     has_score="false"
                     display_name="SCORM"
-                    scorm_file="{{scorm_file}}"
+                    scorm_file="/{{scorm_file}}"
                     />
             </vertical>
         """).render(
