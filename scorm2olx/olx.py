@@ -3,12 +3,18 @@
 
 
 import fs
+import os
+from mimetypes import MimeTypes
+import urllib
 from fs.tarfs import TarFS
 from fs.appfs import UserDataFS
+from fs.osfs import OSFS
+from fs.copy import copy_dir
 import shutil
 import sys
 from jinja2 import Template
 import hashlib
+import json
 
 def md5(x):
     import hashlib
@@ -33,8 +39,8 @@ class OLX(object):
     def __init__(self, olx_file):
         super(OLX, self).__init__()
         self.olx_file = olx_file
-        self.tree = dict()
-        self.skel()
+        # self.tree = dict()
+        # self.skel()
 
     def skel(self):
         with TarFS('{0}'.format(self.olx_file), write=True) as zipfs:
@@ -103,7 +109,7 @@ class OLX(object):
         ]
     }
 }"""
-            import json
+
             try:
                 pol = json.loads(policy)
             except Exception as e:
@@ -112,7 +118,6 @@ class OLX(object):
 
             zipfs.settext(u'/policies/course/policy.json', u'{0}'.format(json.dumps(pol)))
 
-            zipfs.settext(u'/policies/assets.json', u'{}')
 
             zipfs.makedirs(u'/problem')
             zipfs.makedirs(u'/static')
@@ -151,12 +156,61 @@ class OLX(object):
     def add_tree(self, tree):
         self.tree = tree
 
-
     def add_chapters(self, zipfs):
         chapters = ""
-        for chapter in self.tree:
+        for chapter in self.tree['orgs']:
             chapters += '\n' + self.add_chapter(chapter, zipfs)
+        zipfs.settext(u'/policies/assets.json', self.fHandler(zipfs))
         return chapters
+
+    def fHandler(self, zipfs):
+        zipfile = self.tree['zipfile']
+        assets = {}
+        if zipfile:
+            try:
+                with fs.open_fs('zip://{0}'.format(zipfile)) as scorm_zipfs:
+                    copy_dir(scorm_zipfs, u'/', zipfs, u'/static')
+                    # Walk
+                    mime = MimeTypes()
+                    for asset in zipfs.walk.files(filter='/static/*'):
+                        contentType = mime.guess_type(asset)[0]
+                        _asset = os.path.basename(asset)
+                        if contentType:
+                            a = {
+                                "contentType": contentType,
+                                "displayname": _asset,
+                                "locked": "true",
+                                "content_son": {
+                                    "category": "asset",
+                                    "name": _asset
+                                    },
+                                    "filename": asset,
+                                    "import_path": "null"
+                            }
+                            assets[_asset] = a
+            except fs.errors.ResourceNotFound as e:
+                print("Invalid SCORM file")
+                print(e)
+                # copy_file(
+                #     unicode(os.path.dirname(zipfile)),
+                #     unicode(zipfile),
+                #     zipfs,
+                #     u'/static/{}'.format(os.path.basename(zipfile))
+                # )
+                # assets[_zipfile] = {
+                #     "contentType": "application/zip",
+                #     "displayname": _zipfile,
+                #     "locked": "true",
+                #     "content_son": {
+                #         "category": "asset",
+                #         "name": _zipfile
+                #         },
+                #         "filename": zipfile,
+                #         "import_path": "null"
+                #     }
+
+        print json.dumps(assets, indent=4)
+        return unicode(json.dumps(assets))
 
     def add_chapter(self, chapter, zipfs):
         title = chapter.get('title')

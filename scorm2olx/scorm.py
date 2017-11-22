@@ -122,7 +122,10 @@ class Scorm(object):
     def _bs_parse(self, scorm_xml, zipfs):
 
         b = BeautifulSoup(scorm_xml, 'xml')
-        orgs = list()
+        data = {
+            "zipfile": self.scorm_file,
+            "orgs": list()
+        }
         for org in b.organizations.find_all('item'):
             d_org = dict()
             d_org.update({
@@ -146,8 +149,8 @@ class Scorm(object):
                 "index": index_href,
                 "files": sorted(files)
             })
-            orgs.append(d_org)
-        return orgs
+            data['orgs'].append(d_org)
+        return data
 
 
 
