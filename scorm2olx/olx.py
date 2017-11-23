@@ -168,6 +168,7 @@ class OLX(object):
         if zipfile:
             try:
                 with fs.open_fs('zip://{0}'.format(zipfile)) as scorm_zipfs:
+                    # copy_dir(scorm_zipfs, u'/', zipfs, u'/static')
                     copy_file(
                         unicode(os.path.dirname(zipfile)),
                         unicode(zipfile),
@@ -178,6 +179,7 @@ class OLX(object):
                     mime = MimeTypes()
                     for asset in filter(lambda a: re.match(r'^\/static', a), zipfs.walk.files()):
                         contentType = mime.guess_type(asset)[0]
+                        print asset
                         _asset = os.path.basename(asset)
                         if contentType:
                             a = {
@@ -196,6 +198,7 @@ class OLX(object):
                 print("Invalid SCORM file")
                 print(e)
 
+        # print json.dumps(assets, indent=4)
         return unicode(json.dumps(assets))
 
     def add_chapter(self, chapter, zipfs):
@@ -227,7 +230,7 @@ class OLX(object):
                     xblock-family="xblock.v1"
                     icon_class="video"
                     has_score="false"
-                    display_name="SCORM"
+                    display_name="{{display_name}}"
                     scorm_file="{{scorm_file}}"
                     scorm_zip_file="{{scorm_zip_file}}"
                     />
