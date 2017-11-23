@@ -166,12 +166,13 @@ class OLX(object):
         zipfile = self.tree['zipfile']
         assets = {}
         if zipfile:
+            # import pdb; pdb.set_trace()
             try:
                 with fs.open_fs('zip://{0}'.format(zipfile)) as scorm_zipfs:
                     # copy_dir(scorm_zipfs, u'/', zipfs, u'/static')
                     copy_file(
                         unicode(os.path.dirname(zipfile)),
-                        unicode(zipfile),
+                        unicode(os.path.basename(zipfile)),
                         zipfs,
                         u'/static/{}'.format(os.path.basename(zipfile))
                     )
@@ -197,6 +198,7 @@ class OLX(object):
             except fs.errors.ResourceNotFound as e:
                 print("Invalid SCORM file")
                 print(e)
+                print "ERROR"
 
         # print json.dumps(assets, indent=4)
         return unicode(json.dumps(assets))
@@ -239,7 +241,7 @@ class OLX(object):
             display_name=title,
             hash_unit=hash_seq,
             scorm_file=chapter.get('index'),
-            scorm_zip_file=self.tree.get('zipfile'))
+            scorm_zip_file=os.path.basename(self.tree.get('zipfile')))
         zipfs.settext(u'/vertical/{0}.xml'.format(hash_vert), xml_full_vertical)
 
         return xml_chapter
