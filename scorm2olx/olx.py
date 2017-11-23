@@ -9,8 +9,9 @@ import urllib
 from fs.tarfs import TarFS
 from fs.appfs import UserDataFS
 from fs.osfs import OSFS
-from fs.copy import copy_dir
+from fs.copy import copy_dir, copy_file
 import shutil
+import re
 import sys
 from jinja2 import Template
 import hashlib
@@ -138,9 +139,7 @@ class OLX(object):
             # }))
             zipfs.settext(u'course.xml', tpl.render({
             "org": "OS",
-            "course": "4",
-            "course_name": self.olx_file,
-            "chapters": self.add_chapters(zipfs)
+            "course": "4"
             }))
 
 
@@ -169,10 +168,15 @@ class OLX(object):
         if zipfile:
             try:
                 with fs.open_fs('zip://{0}'.format(zipfile)) as scorm_zipfs:
-                    copy_dir(scorm_zipfs, u'/', zipfs, u'/static')
+                    copy_file(
+                        unicode(os.path.dirname(zipfile)),
+                        unicode(zipfile),
+                        zipfs,
+                        u'/static/{}'.format(os.path.basename(zipfile))
+                    )
                     # Walk
                     mime = MimeTypes()
-                    for asset in zipfs.walk.files(filter='/static/*'):
+                    for asset in filter(lambda a: re.match(r'^\/static', a), zipfs.walk.files()):
                         contentType = mime.guess_type(asset)[0]
                         _asset = os.path.basename(asset)
                         if contentType:
@@ -184,32 +188,14 @@ class OLX(object):
                                     "category": "asset",
                                     "name": _asset
                                     },
-                                    "filename": asset,
-                                    "import_path": "null"
+                                    "filename": u'asset-v1:edx+edx+edx+type@asset+block@{}'.format(_asset),
+                                    "import_path": asset
                             }
                             assets[_asset] = a
             except fs.errors.ResourceNotFound as e:
                 print("Invalid SCORM file")
                 print(e)
-                # copy_file(
-                #     unicode(os.path.dirname(zipfile)),
-                #     unicode(zipfile),
-                #     zipfs,
-                #     u'/static/{}'.format(os.path.basename(zipfile))
-                # )
-                # assets[_zipfile] = {
-                #     "contentType": "application/zip",
-                #     "displayname": _zipfile,
-                #     "locked": "true",
-                #     "content_son": {
-                #         "category": "asset",
-                #         "name": _zipfile
-                #         },
-                #         "filename": zipfile,
-                #         "import_path": "null"
-                #     }
 
-        print json.dumps(assets, indent=4)
         return unicode(json.dumps(assets))
 
     def add_chapter(self, chapter, zipfs):
@@ -242,13 +228,15 @@ class OLX(object):
                     icon_class="video"
                     has_score="false"
                     display_name="SCORM"
-                    scorm_file="/{{scorm_file}}"
+                    scorm_file="{{scorm_file}}"
+                    scorm_zip_file="{{scorm_zip_file}}"
                     />
             </vertical>
         """).render(
             display_name=title,
             hash_unit=hash_seq,
-            scorm_file=chapter.get('index'))
+            scorm_file=chapter.get('index'),
+            scorm_zip_file=self.tree.get('zipfile'))
         zipfs.settext(u'/vertical/{0}.xml'.format(hash_vert), xml_full_vertical)
 
         return xml_chapter
