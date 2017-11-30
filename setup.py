@@ -8,6 +8,6 @@ setup(name='scorm2olx',
       description='SCORM to Open Learning XML converter',
       version=u'0.0.1',
       packages=['scorm2olx'],
-      requires=['beautifulsoup4', 'fs', 'scandir', 'Jinja2'],
+      install_requires=['beautifulsoup4', 'fs', 'scandir', 'Jinja2'],
       url=''
 )
