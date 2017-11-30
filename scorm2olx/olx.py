@@ -16,6 +16,7 @@ import sys
 from jinja2 import Template
 import hashlib
 import json
+from webpage2html import generate
 
 def md5(x):
     import hashlib
@@ -166,7 +167,6 @@ class OLX(object):
         zipfile = self.tree['zipfile']
         assets = {}
         if zipfile:
-            # import pdb; pdb.set_trace()
             try:
                 with fs.open_fs('zip://{0}'.format(zipfile)) as scorm_zipfs:
                     # copy_dir(scorm_zipfs, u'/', zipfs, u'/static')
@@ -180,7 +180,6 @@ class OLX(object):
                     mime = MimeTypes()
                     for asset in filter(lambda a: re.match(r'^\/static', a), zipfs.walk.files()):
                         contentType = mime.guess_type(asset)[0]
-                        print asset
                         _asset = os.path.basename(asset)
                         if contentType:
                             a = {
