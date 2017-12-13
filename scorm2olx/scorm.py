@@ -3,6 +3,13 @@
 
 
 import fs
+__OPENER_TOKEN__ = 'zip://'
+try:
+    from fs import fs_open as opener
+except ImportError:
+    from fs.zipfs import ZipFS as opener
+    __OPENER_TOKEN__ = ''
+
 import StringIO
 import json
 from bs4 import BeautifulSoup
@@ -13,6 +20,11 @@ import os
 import sys
 import json
 import mimetypes
+
+try:
+    from fs.errors import ResourceNotFound
+except ImportError:
+    ResourceNotFound = Exception
 
 mimetypes.init()
 
@@ -158,11 +170,17 @@ class Scorm(object):
 
     def parse(self):
         try:
-            with fs.open_fs('zip://{0}'.format(self.scorm_file)) as zipfs:
-                scorm_xml = zipfs.gettext(u'/imsmanifest.xml')
+            with opener('{0}{1}'.format(__OPENER_TOKEN__, self.scorm_file)) as zipfs:
+                if hasattr(zipfs, 'gettext'):
+                    scorm_xml = zipfs.gettext(u'/imsmanifest.xml')
+                elif hasattr(zipfs, 'getcontents'):
+                    zipfs.gettext = zipfs.getcontents
+                    scorm_xml = zipfs.getcontents(u'/imsmanifest.xml')
+                    
+
                 orgs = self._bs_parse(scorm_xml, zipfs=zipfs)
                 return orgs
-        except fs.errors.ResourceNotFound as e:
+        except ResourceNotFound as e:
             print("Invalid SCORM file")
             print(e)
 

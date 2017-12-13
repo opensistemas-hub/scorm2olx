@@ -6,20 +6,74 @@ import fs
 import os
 from mimetypes import MimeTypes
 import urllib
-from fs.tarfs import TarFS
-from fs.appfs import UserDataFS
+
+try:
+    from fs.tarfs import TarFS
+except ImportError as e:
+
+    import tarfile
+    import tempfile
+    import shutil
+    import os
+
+    class TarFS(object):
+
+        def __init__(self, tarname, write=True):
+            super(TarFS, self).__init__()
+            self.tarname = tarname
+            self.write = write
+
+
+        def __enter__(self):
+            self.__dirname__ = tempfile.mkdtemp()
+            return self
+
+            # mode = 'r:gz'
+            # if self.write:
+            #     mode = 'w:gz'
+            # self.tarfile = tarfile.open(self.tarname, mode=mode)
+            # return self.tarfile
+
+        def __exit__(self):
+            self.tarfile.open(self.__dirname__, mode='w:gz')
+            self.tarfile.close()
+            shutil.rmtree(self.__dirname__)
+
+        def makedirs(self, dir):
+            os.makedirs(os.path.join(self.__dirname__, dir))
+
+        def settext(self, filename, content=None):
+            with open(os.path.join(self.__dirname__, filename), 'w') as f:
+                if content:
+                    f.write(content)
+
+        def touch(self, filename):
+            return self.settext(filename)
+
+
+    # from tarfs import TarFS
+    
+
+try:
+    from fs.errors import ResourceNotFound
+except ImportError:
+    ResourceNotFound = Exception
+
 from fs.osfs import OSFS
-from fs.copy import copy_dir, copy_file
+try:
+    from fs.copy import copy_file
+except ImportError:
+    def copy_file(from_dir, from_file, to_dir, to_file):
+        print from_dir, from_file, to_dir, to_file
+
 import shutil
 import re
 import sys
 from jinja2 import Template
 import hashlib
 import json
-from webpage2html import generate
 
 def md5(x):
-    import hashlib
     m = hashlib.md5()
     m.update(x.encode('utf-8'))
     return m.hexdigest()
@@ -169,7 +223,6 @@ class OLX(object):
         if zipfile:
             try:
                 with fs.open_fs('zip://{0}'.format(zipfile)) as scorm_zipfs:
-                    # copy_dir(scorm_zipfs, u'/', zipfs, u'/static')
                     copy_file(
                         unicode(os.path.dirname(zipfile)),
                         unicode(os.path.basename(zipfile)),
@@ -194,7 +247,7 @@ class OLX(object):
                                     "import_path": asset
                             }
                             assets[_asset] = a
-            except fs.errors.ResourceNotFound as e:
+            except ResourceNotFound as e:
                 print("Invalid SCORM file")
                 print(e)
                 print "ERROR"
