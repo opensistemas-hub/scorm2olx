@@ -20,6 +20,7 @@ import os
 import sys
 import json
 import mimetypes
+from urlparse import urlparse
 
 try:
     from fs.errors import ResourceNotFound
@@ -138,7 +139,7 @@ class Scorm(object):
             "zipfile": self.scorm_file,
             "orgs": list()
         }
-        for org in b.organizations.find_all('item'):
+        for org in filter(lambda x: x.get('identifierref'), b.organizations.find_all('item')):
             d_org = dict()
             d_org.update({
             'title': org.title.text,
@@ -146,22 +147,24 @@ class Scorm(object):
             'identifierref': org.get('identifierref')
             })
 
-            resource = list(b.find_all('resource', identifier=org.get('identifierref')))[0]
-            files = map(lambda x: mimeparse(x.get('href'), zipfs), resource.find_all('file'))
-            index_href = resource.get('href', 'index.html')
-            dirname = os.path.dirname(index_href)
-            index_html = zipfs.gettext(u'/{0}'.format(index_href))
+            resources_list = list(b.find_all('resource', identifier=org.get('identifierref')))
+            if len(resources_list):
+                resource = resources_list[0]
+                files = map(lambda x: mimeparse(x.get('href'), zipfs), resource.find_all('file'))
+                index_href = resource.get('href', 'index.html')
+                dirname = os.path.dirname(index_href)
+                index_html = zipfs.gettext(u'/{0}'.format(urlparse(index_href).path))
 
-            # Parse index_html to find out whether a popup exists
-            m = re.search(r"window\.open\(\"(?P<url>[\w+\/\.]+)\",", index_html)
-            if m:
-                index_href = os.path.join(dirname, m.group('url'))
+                # Parse index_html to find out whether a popup exists
+                m = re.search(r"window\.open\(\"(?P<url>[\w+\/\.]+)\",", index_html)
+                if m:
+                    index_href = os.path.join(dirname, m.group('url'))
 
-            d_org.update({
-                "index": index_href,
-                "files": sorted(files)
-            })
-            data['orgs'].append(d_org)
+                d_org.update({
+                    "index": index_href,
+                    "files": sorted(files)
+                })
+                data['orgs'].append(d_org)
         return data
 
 
@@ -181,6 +184,8 @@ class Scorm(object):
                 orgs = self._bs_parse(scorm_xml, zipfs=zipfs)
                 return orgs
         except ResourceNotFound as e:
+            import traceback
+            traceback.print_exc()
             print("Invalid SCORM file")
             print(e)
 

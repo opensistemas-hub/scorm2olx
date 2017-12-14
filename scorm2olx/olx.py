@@ -94,8 +94,6 @@ class OLX(object):
     def __init__(self, olx_file):
         super(OLX, self).__init__()
         self.olx_file = olx_file
-        # self.tree = dict()
-        # self.skel()
 
     def skel(self):
         with TarFS('{0}'.format(self.olx_file), write=True) as tarfs:
@@ -212,7 +210,9 @@ class OLX(object):
     def add_chapters(self, tarfs):
         chapters = ""
         for chapter in self.tree['orgs']:
-            chapters += '\n' + self.add_chapter(chapter, tarfs)
+            ch = self.add_chapter(chapter, tarfs)
+            if ch:
+                chapters += '\n' + ch
         tarfs.settext(u'/policies/assets.json', self.fHandler(tarfs))
         return chapters
 
