@@ -7,6 +7,8 @@ import os
 from mimetypes import MimeTypes
 import urllib
 
+from fs.zipfs import ZipFS
+
 try:
     from fs.tarfs import TarFS
 except ImportError as e:
@@ -28,27 +30,32 @@ except ImportError as e:
             self.__dirname__ = tempfile.mkdtemp()
             return self
 
-            # mode = 'r:gz'
-            # if self.write:
-            #     mode = 'w:gz'
-            # self.tarfile = tarfile.open(self.tarname, mode=mode)
-            # return self.tarfile
-
-        def __exit__(self):
-            self.tarfile.open(self.__dirname__, mode='w:gz')
-            self.tarfile.close()
+        def __exit__(self, *args, **kwargs):
+            tf = tarfile.open(self.tarname, mode='w:gz')
+            tf.add(u'{}/'.format(self.__dirname__), arcname='')
+            tf.close()
             shutil.rmtree(self.__dirname__)
 
         def makedirs(self, dir):
-            os.makedirs(os.path.join(self.__dirname__, dir))
+            os.makedirs(self.safe_join(self.__dirname__, dir))
 
         def settext(self, filename, content=None):
-            with open(os.path.join(self.__dirname__, filename), 'w') as f:
+            with open(self.safe_join(self.__dirname__, filename), 'w') as f:
                 if content:
-                    f.write(content)
-
+                    f.write(content.encode('utf-8'))
+    
         def touch(self, filename):
             return self.settext(filename)
+
+        def copy(self, source, destination):
+            shutil.copyfile(source, self.safe_join(self.__dirname__, destination))
+
+        @staticmethod
+        def safe_join(a, b):
+            if os.path.isabs(b):
+                return '{0}{1}'.format(a, b)
+            else:
+                return '{0}/{1}'.format(a, b)
 
 
     # from tarfs import TarFS
@@ -59,14 +66,6 @@ try:
 except ImportError:
     ResourceNotFound = Exception
 
-from fs.osfs import OSFS
-try:
-    from fs.copy import copy_file
-except ImportError:
-    def copy_file(from_dir, from_file, to_dir, to_file):
-        print from_dir, from_file, to_dir, to_file
-
-import shutil
 import re
 import sys
 from jinja2 import Template
@@ -99,19 +98,19 @@ class OLX(object):
         # self.skel()
 
     def skel(self):
-        with TarFS('{0}'.format(self.olx_file), write=True) as zipfs:
+        with TarFS('{0}'.format(self.olx_file), write=True) as tarfs:
 
-            zipfs.makedirs(u'/about')
-            zipfs.touch(u'/about/overview.html')
-            zipfs.touch(u'/about/short_description.html')
+            tarfs.makedirs(u'/about')
+            tarfs.touch(u'/about/overview.html')
+            tarfs.touch(u'/about/short_description.html')
 
 
-            zipfs.makedirs(u'/info')
-            zipfs.touch(u'/info/updates.html')
-            zipfs.touch(u'/info/handouts.html')
+            tarfs.makedirs(u'/info')
+            tarfs.touch(u'/info/updates.html')
+            tarfs.touch(u'/info/handouts.html')
 
-            zipfs.makedirs(u'/policies/course')
-            zipfs.settext(u'/policies/course/grading_policy.json', u'{}')
+            tarfs.makedirs(u'/policies/course')
+            tarfs.settext(u'/policies/course/grading_policy.json', u'{}')
 
             policy = u"""
 {
@@ -172,90 +171,89 @@ class OLX(object):
                 print (e)
                 sys.exit(3)
 
-            zipfs.settext(u'/policies/course/policy.json', u'{0}'.format(json.dumps(pol)))
+            tarfs.settext(u'/policies/course/policy.json', u'{0}'.format(json.dumps(pol)))
 
 
-            zipfs.makedirs(u'/problem')
-            zipfs.makedirs(u'/static')
+            tarfs.makedirs(u'/problem')
+            tarfs.makedirs(u'/static')
 
-            zipfs.makedirs(u'/chapter')
-            zipfs.makedirs(u'/sequential')
-            zipfs.makedirs(u'/vertical')
+            tarfs.makedirs(u'/chapter')
+            tarfs.makedirs(u'/sequential')
+            tarfs.makedirs(u'/vertical')
 
-            zipfs.makedirs(u'/tabs')
-            zipfs.makedirs(u'/html')
+            tarfs.makedirs(u'/tabs')
+            tarfs.makedirs(u'/html')
 
-            zipfs.makedirs(u'course')
+            tarfs.makedirs(u'course')
             tpl = Template(__COURSE_XML__)
 
-            # zipfs.settext(u'course.xml', tpl.render({
+            # tarfs.settext(u'course.xml', tpl.render({
             #     "org": "OS",
             #     "course": "4"
             # }))
-            zipfs.settext(u'course.xml', tpl.render({
+            tarfs.settext(u'course.xml', tpl.render({
             "org": "OS",
             "course": "4"
             }))
 
 
             tpl = Template(__COURSE_COURSE_XML__)
-            zipfs.settext(u'course/course.xml', tpl.render({
+            tarfs.settext(u'course/course.xml', tpl.render({
             "org": "OS",
             "course": "4",
             "course_name": self.olx_file,
-            "chapters": self.add_chapters(zipfs)
+            "chapters": self.add_chapters(tarfs)
             }))
 
 
     def add_tree(self, tree):
         self.tree = tree
 
-    def add_chapters(self, zipfs):
+    def add_chapters(self, tarfs):
         chapters = ""
         for chapter in self.tree['orgs']:
-            chapters += '\n' + self.add_chapter(chapter, zipfs)
-        zipfs.settext(u'/policies/assets.json', self.fHandler(zipfs))
+            chapters += '\n' + self.add_chapter(chapter, tarfs)
+        tarfs.settext(u'/policies/assets.json', self.fHandler(tarfs))
         return chapters
 
-    def fHandler(self, zipfs):
+    def fHandler(self, tarfs):
         zipfile = self.tree['zipfile']
         assets = {}
         if zipfile:
             try:
-                with fs.open_fs('zip://{0}'.format(zipfile)) as scorm_zipfs:
-                    copy_file(
-                        unicode(os.path.dirname(zipfile)),
-                        unicode(os.path.basename(zipfile)),
-                        zipfs,
-                        u'/static/{}'.format(os.path.basename(zipfile))
-                    )
+                with ZipFS('{0}'.format(zipfile)) as scorm_zipfs:
+                    # Add original SCORM file into static content
+                    tarfs.copy(zipfile, tarfs.safe_join('/static/', zipfile))
+                    
                     # Walk
                     mime = MimeTypes()
-                    for asset in filter(lambda a: re.match(r'^\/static', a), zipfs.walk.files()):
-                        contentType = mime.guess_type(asset)[0]
-                        _asset = os.path.basename(asset)
-                        if contentType:
-                            a = {
-                                "contentType": contentType,
-                                "displayname": _asset,
-                                "locked": "true",
-                                "content_son": {
-                                    "category": "asset",
-                                    "name": _asset
-                                    },
-                                    "filename": u'asset-v1:edx+edx+edx+type@asset+block@{}'.format(_asset),
-                                    "import_path": asset
-                            }
-                            assets[_asset] = a
+                    contentType = mime.guess_type(tarfs.safe_join('/static/', zipfile))[0]
+                    _asset = os.path.basename(zipfile)
+
+                    if contentType:
+                        a = {
+                            "contentType": contentType,
+                            "displayname": _asset,
+                            "locked": "true",
+                            "content_son": {
+                                "category": "asset",
+                                "name": _asset
+                                },
+                                "filename": u'asset-v1:edx+edx+edx+type@asset+block@{}'.format(_asset),
+                                "import_path": zipfile
+                        }
+                        assets[_asset] = a
+
             except ResourceNotFound as e:
                 print("Invalid SCORM file")
-                print(e)
+                import traceback
+                traceback.print_exc()
                 print "ERROR"
 
         # print json.dumps(assets, indent=4)
         return unicode(json.dumps(assets))
 
-    def add_chapter(self, chapter, zipfs):
+    def add_chapter(self, chapter, tarfs):
         title = chapter.get('title')
         hash_name = md5(title)
         hash_seq = md5(chapter.get('identifier'))
@@ -268,14 +266,14 @@ class OLX(object):
                 <sequential url_name="{{hash_seq}}" />
             </chapter>
         """).render(display_name=title, hash_seq=hash_seq)
-        zipfs.settext(u'/chapter/{0}.xml'.format(hash_name), xml_full_chapter)
+        tarfs.settext(u'/chapter/{0}.xml'.format(hash_name), xml_full_chapter)
 
         xml_full_sequential = Template("""
             <sequential display_name="{{display_name}}">
                 <vertical url_name="{{hash_vert}}" />
             </sequential>
         """).render(display_name=title, hash_vert=hash_vert)
-        zipfs.settext(u'/sequential/{0}.xml'.format(hash_seq), xml_full_sequential)
+        tarfs.settext(u'/sequential/{0}.xml'.format(hash_seq), xml_full_sequential)
 
         xml_full_vertical = Template("""
             <vertical display_name="{{display_name}}">
@@ -294,7 +292,7 @@ class OLX(object):
             hash_unit=hash_seq,
             scorm_file=chapter.get('index'),
             scorm_zip_file=os.path.basename(self.tree.get('zipfile')))
-        zipfs.settext(u'/vertical/{0}.xml'.format(hash_vert), xml_full_vertical)
+        tarfs.settext(u'/vertical/{0}.xml'.format(hash_vert), xml_full_vertical)
 
         return xml_chapter
 
