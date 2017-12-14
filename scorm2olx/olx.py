@@ -223,7 +223,7 @@ class OLX(object):
             try:
                 with ZipFS('{0}'.format(zipfile)) as scorm_zipfs:
                     # Add original SCORM file into static content
-                    tarfs.copy(zipfile, tarfs.safe_join('/static/', zipfile))
+                    tarfs.copy(zipfile, tarfs.safe_join('/static/', os.path.basename(zipfile)))
                     
                     # Walk
                     mime = MimeTypes()
