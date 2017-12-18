@@ -134,7 +134,7 @@ class Scorm(object):
 
     def _bs_parse(self, scorm_xml, zipfs):
 
-        b = BeautifulSoup(scorm_xml, 'xml')
+        b = BeautifulSoup(scorm_xml, 'lxml')
         data = {
             "zipfile": self.scorm_file,
             "orgs": list()
