@@ -8,58 +8,7 @@ from mimetypes import MimeTypes
 import urllib
 
 from fs.zipfs import ZipFS
-
-try:
-    from fs.tarfs import TarFS
-except ImportError as e:
-
-    import tarfile
-    import tempfile
-    import shutil
-    import os
-
-    class TarFS(object):
-
-        def __init__(self, tarname, write=True):
-            super(TarFS, self).__init__()
-            self.tarname = tarname
-            self.write = write
-
-
-        def __enter__(self):
-            self.__dirname__ = tempfile.mkdtemp()
-            return self
-
-        def __exit__(self, *args, **kwargs):
-            tf = tarfile.open(self.tarname, mode='w:gz')
-            tf.add(u'{}/'.format(self.__dirname__), arcname='')
-            tf.close()
-            shutil.rmtree(self.__dirname__)
-
-        def makedirs(self, dir):
-            os.makedirs(self.safe_join(self.__dirname__, dir))
-
-        def settext(self, filename, content=None):
-            with open(self.safe_join(self.__dirname__, filename), 'w') as f:
-                if content:
-                    f.write(content.encode('utf-8'))
-    
-        def touch(self, filename):
-            return self.settext(filename)
-
-        def copy(self, source, destination):
-            shutil.copyfile(source, self.safe_join(self.__dirname__, destination))
-
-        @staticmethod
-        def safe_join(a, b):
-            if os.path.isabs(b):
-                return '{0}{1}'.format(a, b)
-            else:
-                return '{0}/{1}'.format(a, b)
-
-
-    # from tarfs import TarFS
-    
+from tarfs import TarFS
 
 try:
     from fs.errors import ResourceNotFound
@@ -82,11 +31,11 @@ __COURSE_COURSE_XML__ = """
 <course
     advanced_modules="[&quot;videoalpha&quot;, &quot;annotatable&quot;, &quot;scormxblock&quot;, &quot;google-document&quot;]"
     cert_html_view_enabled="true"
-    display_name="{{ course_name }}"
+    display_name="{{ display_name }}"
     language="en"
-    start="&quot;2030-01-01T00:00:00+00:00&quot;">
+    start="&quot;9999-01-01T00:00:00+00:00&quot;">
     {{ chapters }}
-  <wiki slug="{{org}}.{{course}}.2030"/>
+  <wiki slug="{{org}}.{{course}}.{{run}}"/>
 </course>
 """
 
@@ -95,7 +44,7 @@ class OLX(object):
         super(OLX, self).__init__()
         self.olx_file = olx_file
 
-    def skel(self):
+    def skel(self, display_name, org, course, run):
         with TarFS('{0}'.format(self.olx_file), write=True) as tarfs:
 
             tarfs.makedirs(u'/about')
@@ -114,10 +63,7 @@ class OLX(object):
 {
     "course/course": {
         "advanced_modules": [
-            "videoalpha",
-            "annotatable",
-            "scormxblock",
-            "google-document"
+            "scormxblock"
         ],
         "cert_html_view_enabled": true,
         "discussion_topics": {
@@ -125,9 +71,9 @@ class OLX(object):
                 "id": "course"
             }
         },
-        "display_name": "SegSocial.zip",
+        "display_name": "%s",
         "language": "en",
-        "start": "2030-01-01T00:00:00Z",
+        "start": "9999-01-01T00:00:00Z",
         "tabs": [
             {
                 "course_staff_only": false,
@@ -161,7 +107,7 @@ class OLX(object):
             }
         ]
     }
-}"""
+}""" % display_name
 
             try:
                 pol = json.loads(policy)
@@ -183,23 +129,16 @@ class OLX(object):
             tarfs.makedirs(u'/html')
 
             tarfs.makedirs(u'course')
-            tpl = Template(__COURSE_XML__)
 
-            # tarfs.settext(u'course.xml', tpl.render({
-            #     "org": "OS",
-            #     "course": "4"
-            # }))
-            tarfs.settext(u'course.xml', tpl.render({
-            "org": "OS",
-            "course": "4"
+            tarfs.settext(u'course.xml', Template(__COURSE_XML__).render({
+            "org": org,
+            "course": course
             }))
 
-
-            tpl = Template(__COURSE_COURSE_XML__)
-            tarfs.settext(u'course/course.xml', tpl.render({
-            "org": "OS",
-            "course": "4",
-            "course_name": self.olx_file,
+            tarfs.settext(u'course/course.xml', Template(__COURSE_COURSE_XML__).render({
+            "org": org,
+            "course": course,
+            "course_name": display_name,
             "chapters": self.add_chapters(tarfs)
             }))
 
