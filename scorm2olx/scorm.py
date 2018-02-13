@@ -3,6 +3,13 @@
 
 
 import fs
+__OPENER_TOKEN__ = 'zip://'
+try:
+    from fs import fs_open as opener
+except ImportError:
+    from fs.zipfs import ZipFS as opener
+    __OPENER_TOKEN__ = ''
+
 import StringIO
 import json
 from bs4 import BeautifulSoup
@@ -12,12 +19,28 @@ import re
 import os
 import sys
 import json
+import mimetypes
+from urlparse import urlparse
+
+try:
+    from fs.errors import ResourceNotFound
+except ImportError:
+    ResourceNotFound = Exception
+
+mimetypes.init()
 
 try:
     import lxml
     __PARSER__='xml'
 except ImportError:
     __PARSER__ = ''
+
+def mimeparse(f, zipfs):
+    # print
+    # print zipfs.getinfo(u'{0}'.format(f)).__dict__
+    # print
+
+    return f
 
 
 class Scorm(object):
@@ -111,9 +134,12 @@ class Scorm(object):
 
     def _bs_parse(self, scorm_xml, zipfs):
 
-        b = BeautifulSoup(scorm_xml, 'xml')
-        orgs = list()
-        for org in b.organizations.find_all('item'):
+        b = BeautifulSoup(scorm_xml, 'lxml')
+        data = {
+            "zipfile": self.scorm_file,
+            "orgs": list()
+        }
+        for org in filter(lambda x: x.get('identifierref'), b.organizations.find_all('item')):
             d_org = dict()
             d_org.update({
             'title': org.title.text,
@@ -121,32 +147,45 @@ class Scorm(object):
             'identifierref': org.get('identifierref')
             })
 
-            resource = list(b.find_all('resource', identifier=org.get('identifierref')))[0]
-            files = map(lambda x: x.get('href'), resource.find_all('file'))
-            index_href = resource.get('href', 'index.html')
-            dirname = os.path.dirname(index_href)
-            index_html = zipfs.gettext(u'/{0}'.format(index_href))
+            resources_list = list(b.find_all('resource', identifier=org.get('identifierref')))
+            if len(resources_list):
+                resource = resources_list[0]
+                files = map(lambda x: mimeparse(x.get('href'), zipfs), resource.find_all('file'))
+                index_href = resource.get('href', 'index.html')
+                dirname = os.path.dirname(index_href)
+                index_html = zipfs.gettext(u'/{0}'.format(urlparse(index_href).path))
 
-            # Parse index_html to find out whether a popup exists
-            m = re.search(r"window\.open\(\"(?P<url>[\w+\/\.]+)\",", index_html)
-            if m:
-                index_href = os.path.join(dirname, m.group('url'))
+                # Parse index_html to find out whether a popup exists
+                m = re.search(r"window\.open\(\"(?P<url>[\w+\/\.]+)\",", index_html)
+                if m:
+                    index_href = os.path.join(dirname, m.group('url'))
 
-            d_org.update({
-                "index": index_href,
-                "files": sorted(files)
-            })
-            orgs.append(d_org)
-        return orgs
+                d_org.update({
+                    "index": index_href,
+                    "files": sorted(files)
+                })
+                data['orgs'].append(d_org)
+        return data
+
+
+
 
 
     def parse(self):
         try:
-            with fs.open_fs('zip://{0}'.format(self.scorm_file)) as zipfs:
-                scorm_xml = zipfs.gettext(u'/imsmanifest.xml')
+            with opener('{0}{1}'.format(__OPENER_TOKEN__, self.scorm_file)) as zipfs:
+                if hasattr(zipfs, 'gettext'):
+                    scorm_xml = zipfs.gettext(u'/imsmanifest.xml')
+                elif hasattr(zipfs, 'getcontents'):
+                    zipfs.gettext = zipfs.getcontents
+                    scorm_xml = zipfs.getcontents(u'/imsmanifest.xml')
+                    
+
                 orgs = self._bs_parse(scorm_xml, zipfs=zipfs)
                 return orgs
-        except fs.errors.ResourceNotFound as e:
+        except ResourceNotFound as e:
+            import traceback
+            traceback.print_exc()
             print("Invalid SCORM file")
             print(e)
 
